@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "name": "Mac",
+            "includePath": [
+                "/Users/jeremy/Library/Arduino15/packages/esp8266/tools/**",
+                "/Users/jeremy/Library/Arduino15/packages/esp8266/hardware/esp8266/2.5.2/**",
+                "${workspaceFolder}/**",
+                "/Users/jeremy/Documents/Arduino/libraries/**"
+
+            ],
+            "forcedInclude": [],
+            "macFrameworkPath": [
+                "/System/Library/Frameworks",
+                "/Library/Frameworks"
+            ],
+            "intelliSenseMode": "clang-x64",
+            "compilerPath": "/usr/local/bin/gcc-8",
+            "cStandard": "c11",
+            "cppStandard": "c++17"
+        }
+    ],
+    "version": 4
+}

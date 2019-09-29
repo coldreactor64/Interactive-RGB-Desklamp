@@ -6,7 +6,7 @@ const AppNavigator = createStackNavigator({
   homeScreen: {
     screen: Home,
     navigationOptions: {
-      title: 'Rocket Watcher',
+      title: 'Interactive Desk lamp',
       header: null,
       headerBackTitle: 'Home',
     },
