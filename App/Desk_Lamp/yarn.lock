@@ -5691,6 +5691,11 @@ react-native-safe-area-view@^0.14.1:
   dependencies:
     debounce "^1.2.0"
 
+react-native-svg@^9.9.9:
+  version "9.9.9"
+  resolved "https://registry.yarnpkg.com/react-native-svg/-/react-native-svg-9.9.9.tgz#67c83b56d7a292162762a6d389dc78512558c2ca"
+  integrity sha512-a/wxzEaAqWZ3uYwTJKo8sj2gURmEs4xBB83tx5gK9rpoEixzHfsj8+qLacwmQrHab7nf+tWj56INMTSPqm60oA==
+
 react-native-testing-library@^1.11.1:
   version "1.11.1"
   resolved "https://registry.yarnpkg.com/react-native-testing-library/-/react-native-testing-library-1.11.1.tgz#0e2d73991110cf7d7800d86610ad7b7f8a4c9455"
