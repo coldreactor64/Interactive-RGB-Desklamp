@@ -14,24 +14,31 @@ class Led_effects
 
 public:
   Led_effects(uint8_t);
+  void set_power(char*);
   void set_brightness(uint8_t);
   void update_leds();
+  void nextEffect();
+  void previousEffect();
+
   String parse_effect(String, String);
   CRGB leds[NUM_LEDS];
   StaticJsonDocument<300> ledJSON;
   uint8_t brightness;
   uint8_t oldBrightness;
+
+  uint8_t CurrentPatternNumber;
+  uint8_t lengthPatterns;
   String effect;
   String effect_Parameters;
-  uint8_t CurrentPatternNumber;
-  typedef void (Led_effects::*PatternList)();
   String currentPatterns();
+  void juggle();
+  void sinelon();
+  void nullPattern();
 
 private:
   void init_leds(int);
   void set_single_color(uint8_t, uint8_t, uint8_t, uint8_t);
   void set_solid(uint8_t, uint8_t, uint8_t);
-  void juggle();
-  void sinelon();
-  void nullPattern();
 };
+
+typedef void (Led_effects::*PatternList)();

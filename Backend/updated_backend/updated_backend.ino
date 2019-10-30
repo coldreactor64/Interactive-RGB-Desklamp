@@ -7,7 +7,7 @@
 #include "WebSocketsServer.h"
 #include "led_effects.h"
 #include "config.h"
-//#include "mqtthelper.h"
+#include "mqtthelper.h"
 #include "Adafruit_MQTT.h"
 #include "Adafruit_MQTT_Client.h"
 //Local Wifi Connection Info
@@ -19,7 +19,8 @@ const char *AP_password = "DeskLamp";
 // Create an ESP8266 WiFiClient class to connect to the MQTT server.
 
 WiFiClient client;
-
+ESP8266WebServer server(80);
+WebSocketsServer webSocket = WebSocketsServer(81);
 /**Adafruit MQTT Subscriptions and Publish objects**/
 Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO_USERNAME, AIO_KEY);
 
@@ -31,19 +32,8 @@ Adafruit_MQTT_Subscribe nextEffectSubscribe = Adafruit_MQTT_Subscribe(&mqtt, AIO
 Adafruit_MQTT_Publish previousEffectPublish = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/desklamp.previouseffect", MQTT_QOS_1);
 Adafruit_MQTT_Publish nextEffectPublish = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/desklamp.nexteffect", MQTT_QOS_1);
 
-ESP8266WebServer server(80);
-WebSocketsServer webSocket = WebSocketsServer(81);
 Led_effects *LED;
 
-// /**RGB LED Configuration**/
-// #define DATA_PIN 4           //ESP8266 Pin Number
-// #define LED_TYPE WS2812      //LED Type
-// #define COLOR_ORDER GRB      //Order of Color on RGB Strip
-// #define NUM_LEDS 29          //Number of LEDs in strip
-// #define MILLI_AMPS 1900      //Set Maximum Current of the LEDs
-// #define FRAMES_PER_SECOND 30 // FPS (default: 120)
-
-// CRGB leds[NUM_LEDS];
 CRGB Color = CRGB(244, 244, 244);
 int power = 1;
 
@@ -64,17 +54,8 @@ void setup()
 }
 
 /**
- * fastLEDSetup - Initializes FastLED Library according to settings
+ * startup in station mode 
  */
-void fastLEDSetup()
-{
-  //TODO: replace with class initializer of led_effects
-  FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(LED->leds, NUM_LEDS);
-  FastLED.setMaxPowerInVoltsAndMilliamps(5, MILLI_AMPS);
-  FastLED.setBrightness(startup_brightness);
-  fill_solid(LED->leds, NUM_LEDS, Color);
-  FastLED.show();
-}
 
 int startupSTA()
 {
@@ -111,7 +92,6 @@ void startmDNS()
 
 void loop()
 {
-
   MDNS.update();
   server.handleClient();
   webSocket.loop();
@@ -121,19 +101,14 @@ void loop()
   }
   EVERY_N_MILLISECONDS(100)
   {
-    MQTT_connect();
+    if (!mqtt.connected())
+    {
+      MQTT_connect();
+    }
     mqtt.processPackets(20);
   }
   FastLED.show();
   FastLED.delay(1000 / FRAMES_PER_SECOND);
-}
-
-/**
- * writeCurrentStatus - writes current Lamp State to EEPROM
- * returns bool; 
- * */
-bool writeCurrentStatus()
-{
 }
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
@@ -160,30 +135,6 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
   }
 }
 
-void sendLEDStatus()
-{
-  String json = "{";
-  json += "\"leds\":";
-  json += "[";
-  for (uint8_t i = 0; i < NUM_LEDS; i++)
-  {
-    json += "[";
-    json += String(LED->leds[i].red);
-    json += ",";
-    json += String(LED->leds[i].green);
-    json += ",";
-    json += String(LED->leds[i].blue);
-    json += "]";
-    if (i < NUM_LEDS - 1)
-    {
-      json += ",";
-    }
-  }
-  json += "]";
-  json += "}";
-  webSocket.broadcastTXT(json);
-}
-
 void setupEndpoints()
 {
   server.on("/all", HTTP_GET, []() {
@@ -195,35 +146,12 @@ void setupEndpoints()
   });
 
   server.on("/power", HTTP_POST, []() {
-    Serial.println("Power Command");
     //Grab the value out of the Post
-    String value = server.arg("value");
-    power = value.toInt();
-    Serial.print(value);
+    String OnOffString = server.arg("value");
+    char OnOffValue[OnOffString.length()];
+    OnOffString.toCharArray(OnOffValue, OnOffString.length());
     //Normal Operation
-    if (power == 1)
-    {
-      Serial.println("Turn On");
-      LED->set_brightness(LED->brightness);
-    }
-    if (power == 0)
-    {
-      Serial.println("Turn Off");
-      //Make the old brightness stored in case we want to turn it back on
-      LED->set_brightness(0);
-    }
-
-    //Edge cases in case something messes up
-    if (power > 1)
-    {
-      Serial.println("Error 1");
-      LED->set_brightness(LED->brightness);
-    }
-    if (power < 0)
-    {
-      Serial.println("Error 2");
-      LED->set_brightness(0);
-    }
+    LED->set_power(OnOffValue);
     String json = "{";
     json += "\"power\":" + String(power);
     json += "}";
@@ -279,10 +207,6 @@ void MQTT_connect()
   int8_t ret;
 
   // Stop if already connected.
-  if (mqtt.connected())
-  {
-    return;
-  }
 
   Serial.print("Connecting to MQTT... ");
 
@@ -304,29 +228,15 @@ void MQTT_connect()
   Serial.println("MQTT Connected!");
 }
 
+/** Callbacks for MQTT **/
+
 void onoffcallback(char *data, uint16_t len)
 {
-  const char onCommand[] = "on";
-  const char offCommand[] = "off";
-  if (strcmp(onCommand, (const char *)data) == 0)
-  {
-    Serial.println("Turn On");
-    LED->set_brightness(LED->oldBrightness);
-  }
-  if (strcmp(offCommand, (const char *)data) == 0)
-  {
-    Serial.println("Turn Off");
-    //Make the old brightness stored in case we want to turn it back on
-    LED->oldBrightness = LED->brightness;
-    LED->set_brightness(0);
-  }
 }
 
 void brightnessCallback(char *data, uint16_t len)
 {
-  LED->brightness = atoi(data);
   LED->set_brightness(atoi(data));
-  Serial.print(atoi(data));
 }
 
 void nextEffectCallback(char *data, uint16_t len)
@@ -334,7 +244,7 @@ void nextEffectCallback(char *data, uint16_t len)
   const char nextEffectCommand[] = "nexteffect";
   if (strcmp(nextEffectCommand, (const char *)data) == 0)
   {
-    //TODO: Add next effect method in LED Class
+    LED->nextEffect();
     nextEffectPublish.publish("0");
   }
 }
@@ -344,7 +254,7 @@ void previousEffectCallback(char *data, uint16_t len)
   const char previousEffectCommand[] = "previouseffect";
   if (strcmp(previousEffectCommand, (const char *)data) == 0)
   {
-    //TODO: Add previous effect method in LED Class
+    LED->previousEffect();
     nextEffectPublish.publish("0");
   }
 }
@@ -358,5 +268,8 @@ void MQTT_setup()
   brightnessSubscribe.setCallback(brightnessCallback);
 
   mqtt.subscribe(&nextEffectSubscribe);
-  brightnessSubscribe.setCallback(previousEffectCallback);
+  nextEffectSubscribe.setCallback(nextEffectCallback);
+
+  mqtt.subscribe(&previousEffectSubscribe);
+  previousEffectSubscribe.setCallback(previousEffectCallback);
 }
