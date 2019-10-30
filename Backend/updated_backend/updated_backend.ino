@@ -40,6 +40,8 @@ int power = 1;
 uint8_t startup_brightness = 40;
 int timeout = 0;
 bool liveData = false;
+
+
 void setup()
 {
   Serial.begin(115200);
@@ -149,9 +151,10 @@ void setupEndpoints()
     //Grab the value out of the Post
     String OnOffString = server.arg("value");
     char OnOffValue[OnOffString.length()];
-    OnOffString.toCharArray(OnOffValue, OnOffString.length());
+    OnOffString.toCharArray(OnOffValue, OnOffString.length() + 1);
     //Normal Operation
     LED->set_power(OnOffValue);
+    //TODO: Update Return JSON
     String json = "{";
     json += "\"power\":" + String(power);
     json += "}";
@@ -176,6 +179,7 @@ void setupEndpoints()
 
 void sendAll()
 {
+  //TODO: Update SendAll
   String json = "{";
   json += "\"power\":" + String(power) + ",";
   json += "\"brightness\":" + String(LED->brightness) + ",";

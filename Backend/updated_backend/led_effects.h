@@ -9,6 +9,10 @@
 #define MILLI_AMPS 1900      //Set Maximum Current of the LEDs
 #define FRAMES_PER_SECOND 30 // FPS (default: 120)
 
+
+//TODO: Add function that returns name of all effects and properties in JSON
+//TODO: Add a function that returns current desklamp status in JSON
+
 class Led_effects
 {
 
