@@ -19,9 +19,30 @@ Led_effects::Led_effects(uint8_t init_brightness)
   FastLED.show();
 };
 
-//Returns a serialized JSON String with all Effects with their available options
+//Current patterns parameter options are currently [color,led]
+//Color is RGB value seperated in JSON {r:0,g:0,b:0}
+//led is the led number for the effect indexed from 0 {led:1}
 String Led_effects::currentPatterns()
 {
+
+  String singleSelectJSON = "{";
+  singleSelectJSON += "\"name\": \"Single Select\",";
+  singleSelectJSON += "\"parameters\": [\"color\", \"led\"]";
+  singleSelectJSON += "}";
+
+  String solidColorJSON = "{";
+  solidColorJSON += "\"name\": \"Solid Color\",";
+  solidColorJSON += "\"parameters\": [\"color\"]";
+  solidColorJSON += "}";
+
+  String effectsJSON = "{";
+  effectsJSON += "\"effects\":{";
+  effectsJSON += "\"effect1\":" + solidColorJSON + ",";
+  effectsJSON += "\"effect2\":" + singleSelectJSON;
+  effectsJSON += "}";
+  effectsJSON += "}";
+
+  return effectsJSON;
 }
 
 void Led_effects::update_leds()
@@ -36,8 +57,8 @@ void Led_effects::update_leds()
 String Led_effects::parse_effect(String new_effect, String parameters)
 {
 
-  //Deserialize the JSON Parameters from the String 
-  DeserializationError error = deserializeJson(ledJSON, parameters);
+  //Deserialize the JSON Parameters from the String
+  DeserializationError error = deserializeJson(effectParameters, parameters);
   // Test if parsing succeeds.
   if (error)
   {
@@ -46,23 +67,22 @@ String Led_effects::parse_effect(String new_effect, String parameters)
     return "fail";
   }
 
-
   if (new_effect == "solidColor")
   {
     //Grab the colors from the Parameters JSON
-    uint8_t r = ledJSON["r"];
-    uint8_t g = ledJSON["g"];
-    uint8_t b = ledJSON["b"];
+    uint8_t r = effectParameters["r"];
+    uint8_t g = effectParameters["g"];
+    uint8_t b = effectParameters["b"];
     set_solid(r, g, b);
     CurrentPatternNumber = 0;
   }
   if (new_effect == "singleColor")
   {
     //Grab the colors from the Parameters JSON
-    uint8_t led = ledJSON["led"];
-    uint8_t r = ledJSON["r"];
-    uint8_t g = ledJSON["g"];
-    uint8_t b = ledJSON["b"];
+    uint8_t led = effectParameters["led"];
+    uint8_t r = effectParameters["r"];
+    uint8_t g = effectParameters["g"];
+    uint8_t b = effectParameters["b"];
     set_single_color(led, r, g, b);
     CurrentPatternNumber = 0;
   }
@@ -82,8 +102,8 @@ String Led_effects::parse_effect(String new_effect, String parameters)
   }
   return String("Yes");
 }
-//TODO: Power Command
-void Led_effects::set_power(char* command)
+
+void Led_effects::set_power(char *command)
 {
   const char onCommand[] = "on";
   const char offCommand[] = "off";
@@ -101,7 +121,6 @@ void Led_effects::set_power(char* command)
     set_brightness(0);
   }
 }
-
 
 //set_brightness: sets brightness on input of a uint8_t from 0-100
 void Led_effects::set_brightness(uint8_t newBrightness)

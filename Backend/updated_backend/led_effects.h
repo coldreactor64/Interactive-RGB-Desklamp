@@ -6,12 +6,9 @@
 #define LED_TYPE WS2812      //LED Type
 #define COLOR_ORDER GRB      //Order of Color on RGB Strip
 #define NUM_LEDS 29          //Number of LEDs in strip
-#define MILLI_AMPS 1900      //Set Maximum Current of the LEDs
+#define MILLI_AMPS 2000      //Set Maximum Current of the LEDs
 #define FRAMES_PER_SECOND 30 // FPS (default: 120)
 
-
-//TODO: Add function that returns name of all effects and properties in JSON
-//TODO: Add a function that returns current desklamp status in JSON
 
 class Led_effects
 {
@@ -26,19 +23,15 @@ public:
 
   String parse_effect(String, String);
   CRGB leds[NUM_LEDS];
-  StaticJsonDocument<300> ledJSON;
+  StaticJsonDocument<300> effectParameters;
   uint8_t brightness;
   uint8_t oldBrightness;
-
   uint8_t CurrentPatternNumber;
   uint8_t lengthPatterns;
-  String effect;
-  String effect_Parameters;
   String currentPatterns();
   void juggle();
   void sinelon();
   void nullPattern();
-
 private:
   void init_leds(int);
   void set_single_color(uint8_t, uint8_t, uint8_t, uint8_t);

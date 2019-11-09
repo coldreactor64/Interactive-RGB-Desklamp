@@ -24,13 +24,21 @@ WebSocketsServer webSocket = WebSocketsServer(81);
 /**Adafruit MQTT Subscriptions and Publish objects**/
 Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO_USERNAME, AIO_KEY);
 
-Adafruit_MQTT_Subscribe onoffSubscribe = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/desklamp.state", MQTT_QOS_1);
+Adafruit_MQTT_Subscribe onoffSubscribe = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/desklamp.onoff", MQTT_QOS_1);
 Adafruit_MQTT_Subscribe brightnessSubscribe = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/desklamp.brightness", MQTT_QOS_1);
 Adafruit_MQTT_Subscribe previousEffectSubscribe = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/desklamp.previouseffect", MQTT_QOS_1);
 Adafruit_MQTT_Subscribe nextEffectSubscribe = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/desklamp.nexteffect", MQTT_QOS_1);
+Adafruit_MQTT_Subscribe statusSubscribe = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/desklamp.state", MQTT_QOS_1);
 
+//Note: Anything published to /get suffix just returns the data to the client so you can use the callback
+Adafruit_MQTT_Publish onOffGet = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/desklamp.onoff/get", MQTT_QOS_1);
+Adafruit_MQTT_Publish onOffPublish = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/desklamp.onoff", MQTT_QOS_1);
+Adafruit_MQTT_Publish brightnessGet = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/desklamp.brightness/get", MQTT_QOS_1);
+Adafruit_MQTT_Publish brightnessPublish = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/desklamp.brightness", MQTT_QOS_1);
 Adafruit_MQTT_Publish previousEffectPublish = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/desklamp.previouseffect", MQTT_QOS_1);
 Adafruit_MQTT_Publish nextEffectPublish = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/desklamp.nexteffect", MQTT_QOS_1);
+Adafruit_MQTT_Publish statusGet = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/desklamp.state/get", MQTT_QOS_1);
+Adafruit_MQTT_Publish statusPublish = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/desklamp.state", MQTT_QOS_1);
 
 Led_effects *LED;
 
@@ -40,7 +48,6 @@ int power = 1;
 uint8_t startup_brightness = 40;
 int timeout = 0;
 bool liveData = false;
-
 
 void setup()
 {
@@ -53,6 +60,17 @@ void setup()
   webSocket.begin();
   webSocket.onEvent(webSocketEvent);
   MQTT_setup();
+  MQTT_connect();
+}
+
+void setupLamp()
+{
+  Serial.print("Setup Lamp");
+
+  brightnessGet.publish(21312);
+  onOffGet.publish(344);
+  brightnessGet.publish(21312);
+  statusGet.publish(1221);
 }
 
 /**
@@ -107,7 +125,15 @@ void loop()
     {
       MQTT_connect();
     }
-    mqtt.processPackets(20);
+    mqtt.processPackets(10);
+  }
+
+  EVERY_N_MILLISECONDS(4000)
+  {
+    if (!mqtt.ping())
+    {
+      mqtt.disconnect();
+    }
   }
   FastLED.show();
   FastLED.delay(1000 / FRAMES_PER_SECOND);
@@ -140,7 +166,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
 void setupEndpoints()
 {
   server.on("/all", HTTP_GET, []() {
-    sendAll();
+    send_Current_Status_Http();
   });
 
   server.on("/ip", HTTP_GET, []() {
@@ -154,9 +180,9 @@ void setupEndpoints()
     OnOffString.toCharArray(OnOffValue, OnOffString.length() + 1);
     //Normal Operation
     LED->set_power(OnOffValue);
-    //TODO: Update Return JSON
+    onOffPublish.publish(OnOffValue);
     String json = "{";
-    json += "\"power\":" + String(power);
+    json += "\"brightness\":" + String(LED->brightness);
     json += "}";
     server.send(200, "text/json", json);
   });
@@ -165,8 +191,9 @@ void setupEndpoints()
     String value = server.arg("value");
     Serial.println("Set Brightness");
     server.send(200);
-    LED->brightness = value.toInt();
-    LED->set_brightness(value.toInt());
+    uint8_t brightness = value.toInt();
+    LED->set_brightness(brightness);
+    brightnessPublish.publish(brightness);
   });
 
   server.on("/effect", HTTP_POST, []() {
@@ -175,22 +202,16 @@ void setupEndpoints()
     String returnData = LED->parse_effect(effect, settings);
     server.send(200);
   });
-}
 
-void sendAll()
-{
-  //TODO: Update SendAll
-  String json = "{";
-  json += "\"power\":" + String(power) + ",";
-  json += "\"brightness\":" + String(LED->brightness) + ",";
-  json += "\"solidColor\":{";
-  json += "\"r\":" + String(Color.r);
-  json += ",\"g\":" + String(Color.g);
-  json += ",\"b\":" + String(Color.b);
-  json += "}";
-  json += "}";
-  server.send(200, "text/json", json);
-  json = String();
+  server.on("/sendStatus", HTTP_POST, []() {
+    send_Current_Status_Mqtt();
+    server.send(200);
+  });
+
+  server.on("/sendEffects", HTTP_POST, []() {
+    String json = LED->currentPatterns();
+    server.send(200, "text/json", json);
+  });
 }
 
 void sendIP()
@@ -229,6 +250,7 @@ void MQTT_connect()
         ;
     }
   }
+  setupLamp();
   Serial.println("MQTT Connected!");
 }
 
@@ -236,10 +258,13 @@ void MQTT_connect()
 
 void onoffcallback(char *data, uint16_t len)
 {
+  Serial.println(data);
+  LED->set_power(data);
 }
 
 void brightnessCallback(char *data, uint16_t len)
 {
+  Serial.println(atoi(data));
   LED->set_brightness(atoi(data));
 }
 
@@ -276,4 +301,43 @@ void MQTT_setup()
 
   mqtt.subscribe(&previousEffectSubscribe);
   previousEffectSubscribe.setCallback(previousEffectCallback);
+
+  mqtt.subscribe(&statusSubscribe);
+  statusSubscribe.setCallback(updateStatus);
+}
+
+void updateStatus(char *data, uint16_t len)
+{
+}
+
+// send_Current_Status_Mqtt: Sends to Adafruit.io MQTT, the current status of the lamp in JSON
+void send_Current_Status_Mqtt()
+{
+  String effectParameters;
+  serializeJson(LED->effectParameters, effectParameters);
+  String json = "{";
+  json += "\"value\":{";
+  json += "\"effectParameters\":" + effectParameters;
+  json += ",\"currentPatternNumber\":" + String(LED->CurrentPatternNumber);
+  json += "}";
+  json += "}";
+  Serial.print(json);
+  statusPublish.publish(json.c_str());
+}
+
+//send_Current_Status_Http() - sends the current status through HTTP_GET
+void send_Current_Status_Http()
+{
+  String effectParameters;
+  serializeJson(LED->effectParameters, effectParameters);
+  String json = "{";
+  json += "\"power\":" + String(power) + ",";
+  json += "\"brightness\":" + String(LED->brightness) + ",";
+  json += "\"effect\":{";
+  json += "\"effectParameters\":" + effectParameters;
+  json += ",\"currentPatternNumber\":" + String(LED->CurrentPatternNumber);
+  json += "}";
+  json += "}";
+  server.send(200, "text/json", json);
+  json = String();
 }
